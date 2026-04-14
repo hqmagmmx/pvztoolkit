@@ -31,6 +31,15 @@ Toolkit::Toolkit(int width, int height, const char *title)
 
     pak = new PAK();
 
+    // 弹幕相关
+    douyin = new DouyinClient();
+    rule_engine = new RuleEngine();
+    audio_player = new AudioPlayer();
+    audio_player->Initialize();
+
+    std::wstring rules_path = this->current_path / L"rules.json";
+    rule_engine->LoadRules(rules_path);
+
     // 工作回调函数
 
     check_unlock_sun_limit->callback(cb_unlock_sun_limit, this);
@@ -108,6 +117,9 @@ Toolkit::Toolkit(int width, int height, const char *title)
     button_debug->callback(cb_debug_mode, this);
     button_speed->callback(cb_speed, this);
     check_limbo_page->callback(cb_limbo_page, this);
+
+    // 弹幕回调
+    button_danmaku_connect->callback(cb_danmaku_connect, this);
 
 #ifdef _PTK_CHINESE_UI
     check_tooltips->callback(cb_tooltips, this); // 重载

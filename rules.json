@@ -1,0 +1,31 @@
+{
+  "rules": [
+    {
+      "id": 1,
+      "keyword": "小心心",
+      "gift_name": "",
+      "action": "add_sunlight",
+      "value": 200,
+      "sound": "",
+      "enabled": true
+    },
+    {
+      "id": 2,
+      "keyword": "僵尸",
+      "gift_name": "",
+      "action": "spawn_zombie_random",
+      "value": 1,
+      "sound": "",
+      "enabled": true
+    },
+    {
+      "id": 3,
+      "keyword": "",
+      "gift_name": "粉丝灯牌",
+      "action": "fullscreen_zombie",
+      "value": 1,
+      "sound": "",
+      "enabled": true
+    }
+  ]
+}

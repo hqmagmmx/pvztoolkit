@@ -1,5 +1,8 @@
 
 #include "../inc/window.h"
+#include "../inc/douyin.h"
+#include "../inc/rule.h"
+#include "../inc/audio.h"
 
 #define IDI_ICON 1001
 
@@ -948,6 +951,21 @@ Window::Window(int width, int height, const char *title)
                 button_about = new Fl_Button(c(4) + 15, r(6), iw - 15, ih, "关于 ...");
             }
             group_others->end();
+
+            // Douyin danmaku panel
+            group_danmaku = new Fl_Group(m, m + th, w - m * 2, h - m * 2 - th, "弹幕");
+            {
+                input_room_id = new Fl_Input_(c(1), r(1), iw * 2 + m, ih, "直播间号");
+                button_danmaku_connect = new Fl_Button(c(3) - 15, r(1), iw + 15, ih, "连接");
+                box_danmaku_status = new Fl_Box(c(4) - 15, r(1), iw + 15, ih, "未连接");
+                buffer_danmaku_log = new Fl_Text_Buffer();
+                editor_danmaku_log = new Fl_Text_Editor(c(1), r(2), w - m * 2 - 20, h - m * 2 - th - 60, "弹幕日志");
+                editor_danmaku_log->buffer(buffer_danmaku_log);
+                editor_danmaku_log->textfont(ms_font);
+                editor_danmaku_log->textsize(12);
+                editor_danmaku_log->readonly();
+            }
+            group_danmaku->end();
         }
         tabs->end();
 
@@ -1111,6 +1129,21 @@ Window::Window(int width, int height, const char *title)
                 button_about = new Fl_Button(c(4), r(7), iw, ih, "About ...");
             }
             group_others->end();
+
+            // Douyin danmaku panel
+            group_danmaku = new Fl_Group(m, m + th, w - m * 2, h - m * 2 - th, "Danmaku");
+            {
+                input_room_id = new Fl_Input_(c(1), r(1), iw * 2 + m, ih, "Room ID");
+                button_danmaku_connect = new Fl_Button(c(3) - 15, r(1), iw + 15, ih, "Connect");
+                box_danmaku_status = new Fl_Box(c(4) - 15, r(1), iw + 15, ih, "Disconnected");
+                buffer_danmaku_log = new Fl_Text_Buffer();
+                editor_danmaku_log = new Fl_Text_Editor(c(1), r(2), w - m * 2 - 20, h - m * 2 - th - 60, "Danmaku Log");
+                editor_danmaku_log->buffer(buffer_danmaku_log);
+                editor_danmaku_log->textfont(ms_font);
+                editor_danmaku_log->textsize(12);
+                editor_danmaku_log->readonly();
+            }
+            group_danmaku->end();
         }
         tabs->end();
 
@@ -3329,6 +3362,174 @@ void Window::cb_about()
     fl_message_title("About PvZ Toolkit");
 #endif
     fl_message(text.c_str());
+}
+
+void Window::cb_danmaku_connect(Fl_Widget *, void *w)
+{
+    ((Window *)w)->cb_danmaku_connect();
+}
+
+void Window::cb_danmaku_connect()
+{
+    if (danmaku_connected)
+    {
+        douyin->Disconnect();
+        danmaku_connected = false;
+        button_danmaku_connect->label("连接");
+        box_danmaku_status->label("未连接");
+        buffer_danmaku_log->append("已断开连接\n");
+    }
+    else
+    {
+        std::string room_id = input_room_id->value();
+        if (room_id.empty())
+        {
+            fl_alert("请输入直播间号！");
+            return;
+        }
+
+        if (douyin->Connect(room_id))
+        {
+            danmaku_connected = true;
+            button_danmaku_connect->label("断开");
+            box_danmaku_status->label("已连接");
+            buffer_danmaku_log->append("正在连接...\n");
+
+            douyin->SetDanmakuCallback([this](const DanmakuMessage &msg) {
+                Fl::lock();
+                this->OnDanmakuReceived(msg);
+                Fl::unlock();
+            });
+        }
+        else
+        {
+            buffer_danmaku_log->append("连接失败！\n");
+        }
+    }
+}
+
+void Window::OnDanmakuReceived(const DanmakuMessage &msg)
+{
+    char log_line[512];
+
+    switch (msg.type)
+    {
+        case DanmakuType::Text:
+            snprintf(log_line, sizeof(log_line), "[弹幕] %s: %s\n",
+                     msg.user_name.c_str(), msg.content.c_str());
+            break;
+        case DanmakuType::Gift:
+            snprintf(log_line, sizeof(log_line), "[礼物] %s 送 %s x%d (价值%d)\n",
+                     msg.user_name.c_str(), msg.gift_name.c_str(),
+                     msg.gift_count, msg.gift_value);
+            break;
+        case DanmakuType::Like:
+            snprintf(log_line, sizeof(log_line), "[点赞] %s 点了赞\n",
+                     msg.user_name.c_str());
+            break;
+        default:
+            snprintf(log_line, sizeof(log_line), "[%d] %s: %s\n",
+                     (int)msg.type, msg.user_name.c_str(), msg.content.c_str());
+            break;
+    }
+
+    buffer_danmaku_log->append(log_line);
+
+    const Rule *rule = nullptr;
+
+    if (msg.type == DanmakuType::Gift && !msg.gift_name.empty())
+    {
+        rule = rule_engine->MatchGift(msg.gift_name, msg.gift_value);
+    }
+    else if (!msg.content.empty())
+    {
+        rule = rule_engine->MatchDanmaku(msg.content);
+    }
+
+    if (rule && rule->enabled)
+    {
+        ExecuteRuleAction(*rule);
+    }
+}
+
+void Window::ExecuteRuleAction(const Rule &rule)
+{
+    if (!pvz->GameOn())
+        return;
+
+    switch (rule.action)
+    {
+        case RuleAction::AddSunlight:
+            pvz->SetSun(pvz->ReadMemory<int>({0}) + rule.value);
+            break;
+
+        case RuleAction::SubtractSunlight:
+            pvz->SetSun(pvz->ReadMemory<int>({0}) - rule.value);
+            break;
+
+        case RuleAction::SpawnZombieRandom:
+            for (int i = 0; i < rule.value; i++)
+            {
+                int row = rand() % 5;
+                int col = 8 + rand() % 2;
+                pvz->PutZombie(row, col, 0);
+            }
+            break;
+
+        case RuleAction::SpawnZombieRow:
+            for (int col = 8; col < 9; col++)
+            {
+                pvz->PutZombie(rule.value, col, 0);
+            }
+            break;
+
+        case RuleAction::FullscreenZombie:
+            for (int row = 0; row < 5; row++)
+            {
+                for (int i = 0; i < rule.value; i++)
+                {
+                    int col = 8 + rand() % 2;
+                    pvz->PutZombie(row, col, 0);
+                }
+            }
+            break;
+
+        case RuleAction::KillAllZombies:
+            pvz->KillAllZombies();
+            break;
+
+        case RuleAction::PlantInvincible:
+            pvz->PlantInvincible(true);
+            break;
+
+        case RuleAction::PlantWeak:
+            pvz->PlantWeak(true);
+            break;
+
+        case RuleAction::ZombieInvincible:
+            pvz->ZombieInvincible(true);
+            break;
+
+        case RuleAction::ZombieWeak:
+            pvz->ZombieWeak(true);
+            break;
+
+        case RuleAction::DirectWin:
+            pvz->DirectWin(true);
+            break;
+
+        case RuleAction::UnlockSunLimit:
+            pvz->UnlockSunLimit(true);
+            break;
+
+        default:
+            break;
+    }
+
+    if (!rule.sound.empty())
+    {
+        audio_player->PlaySound(rule.sound);
+    }
 }
 
 } // namespace Pt

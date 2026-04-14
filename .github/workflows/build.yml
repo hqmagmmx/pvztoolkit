@@ -1,0 +1,62 @@
+name: Build PvZ Toolkit
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  release:
+    types: [created]
+
+jobs:
+  build-windows:
+    runs-on: windows-2019
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: microsoft/msvc-dev-cmd@v1
+        with:
+          arch: x86
+
+      - name: Download FLTK
+        shell: bash
+        run: |
+          mkdir -p deps/fltk
+          cd deps/fltk
+          wget -q https://github.com/fltk/fltk/releases/download/fltk-1.4.0/fltk-1.4.0-release-x86.zip
+          unzip -q fltk-1.4.0-release-x86.zip
+          mv fltk-1.4.0-release MSVC2019_x86
+
+      - name: Configure CMake
+        shell: bash
+        run: |
+          mkdir -p build
+          cd build
+          cmake -G "NMake Makefiles" ^
+            -DCMAKE_BUILD_TYPE=MinSizeRel ^
+            -DFLTK_DIR="deps/fltk/MSVC2019_x86/CMake" ^
+            -S ..
+
+      - name: Build
+        shell: bash
+        run: |
+          cd build
+          cmake --build . --config MinSizeRel
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pvztoolkit-exe
+          path: build/pvztoolkit.exe
+          retention-days: 30
+
+      - name: Upload Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build/pvztoolkit.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -38,6 +38,9 @@
 #include "pvz.h"
 #include "utils.h"
 #include "version.h"
+#include "douyin.h"
+#include "rule.h"
+#include "audio.h"
 
 namespace Pt
 {
@@ -240,6 +243,15 @@ class Window : public Fl_Double_Window
     Fl_Choice_ *choice_speed;
     Fl_Button *button_speed;
     Fl_Check_Button *check_limbo_page;
+
+    // Douyin danmaku panel
+    Fl_Group *group_danmaku;
+    Fl_Input_ *input_room_id;
+    Fl_Button *button_danmaku_connect;
+    Fl_Box *box_danmaku_status;
+    Fl_Text_Buffer *buffer_danmaku_log;
+    Fl_Text_Editor *editor_danmaku_log;
+
     Fl_Choice_ *choice_scheme;
 #ifdef _PTK_CHINESE_UI
     Fl_Check_Button *check_tooltips;
@@ -259,6 +271,17 @@ class Window : public Fl_Double_Window
     Fl_Box *game_status;
 #ifdef _PTK_CHINESE_UI
     Fl_Box *game_status_tip;
+#endif
+    bool bad_version_warned = false;
+
+    // Douyin client and rule engine
+    DouyinClient *douyin;
+    RuleEngine *rule_engine;
+    AudioPlayer *audio_player;
+    bool danmaku_connected = false;
+
+#ifdef _PTK_CHINESE_UI
+    bool emoji = false;
 #endif
     bool bad_version_warned = false;
 
@@ -336,6 +359,12 @@ class Window : public Fl_Double_Window
 
     static void cb_about(Fl_Widget *, void *);
     inline void cb_about();
+
+    // Douyin danmaku callbacks
+    static void cb_danmaku_connect(Fl_Widget *, void *);
+    inline void cb_danmaku_connect();
+    void OnDanmakuReceived(const DanmakuMessage &msg);
+    void ExecuteRuleAction(const Rule &rule);
 };
 
 } // namespace Pt
