@@ -2,15 +2,13 @@ name: Build PvZ Toolkit
 
 on:
   push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
+    branches: [master]
   release:
     types: [created]
 
 jobs:
-  build-windows:
-    runs-on: windows-2019
+  build:
+    runs-on: windows-latest
 
     steps:
       - name: Checkout code
@@ -21,30 +19,32 @@ jobs:
         with:
           arch: x86
 
-      - name: Download FLTK
-        shell: bash
+      - name: Install vcpkg
         run: |
-          mkdir -p deps/fltk
-          cd deps/fltk
-          wget -q https://github.com/fltk/fltk/releases/download/fltk-1.4.0/fltk-1.4.0-release-x86.zip
-          unzip -q fltk-1.4.0-release-x86.zip
-          mv fltk-1.4.0-release MSVC2019_x86
+          git clone https://github.com/Microsoft/vcpkg.git C:/vcpkg
+          C:/vcpkg/bootstrap-vcpkg.bat
+
+      - name: Install FLTK
+        run: |
+          C:/vcpkg/vcpkg install fltk:x86-windows
 
       - name: Configure CMake
         shell: bash
+        env:
+          CMAKE_TOOLCHAIN_FILE: C:/vcpkg/scripts/buildsystems/vcpkg.cmake
         run: |
           mkdir -p build
           cd build
           cmake -G "NMake Makefiles" ^
-            -DCMAKE_BUILD_TYPE=MinSizeRel ^
-            -DFLTK_DIR="deps/fltk/MSVC2019_x86/CMake" ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake" ^
             -S ..
 
       - name: Build
         shell: bash
         run: |
           cd build
-          cmake --build . --config MinSizeRel
+          cmake --build . --config Release
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
