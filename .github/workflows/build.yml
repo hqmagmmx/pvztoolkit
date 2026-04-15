@@ -14,25 +14,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install vcpkg
+      - name: Download FLTK
+        shell: bash
         run: |
-          git clone --depth 1 https://github.com/Microsoft/vcpkg.git C:/vcpkg
-          C:/vcpkg/bootstrap-vcpkg.bat -disableMetrics
-
-      - name: Install FLTK
-        run: |
-          C:/vcpkg/vcpkg install fltk:x86-windows --clean-buildtrees --cleanDownloads
+          curl -L -o fltk.zip "https://github.com/fltk/fltk/releases/download/fltk-1.4.0/fltk-1.4.0-release-x86.zip"
+          unzip -q fltk.zip
+          mv fltk-1.4.0-release fltk
 
       - name: Configure CMake
         shell: bash
-        env:
-          CMAKE_TOOLCHAIN_FILE: C:/vcpkg/scripts/buildsystems/vcpkg.cmake
         run: |
           mkdir -p build
           cd build
           cmake -G "NMake Makefiles" ^
             -DCMAKE_BUILD_TYPE=Release ^
-            -DFLTK_DIR="C:/vcpkg/installed/x86-windows/share/fltk" ^
+            -DFLTK_DIR="fltk/CMake" ^
             -S ..
 
       - name: Build
