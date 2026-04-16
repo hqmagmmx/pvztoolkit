@@ -16,13 +16,13 @@ jobs:
 
       - name: Setup MSVC x86
         run: |
-          call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x86
+          call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" x86
 
       - name: Download and extract FLTK
         shell: bash
         run: |
-          curl -L -o fltk.zip https://github.com/fltk/fltk/releases/download/fltk-1.3.8/fltk-1.3.8-release-x86.zip
-          unzip -q fltk.zip
+          curl -L -k -o fltk.zip https://github.com/fltk/fltk/releases/download/fltk-1.3.8/fltk-1.3.8-release-x86.zip
+          powershell -command "Expand-Archive -Path fltk.zip -DestinationPath . -Force"
           mv fltk-1.3.8-release fltk
 
       - name: Configure CMake
@@ -30,10 +30,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -G "NMake Makefiles" ^
-            -DCMAKE_BUILD_TYPE=Release ^
-            -DFLTK_DIR="fltk/CMake" ^
-            -S ..
+          cmake -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DFLTK_DIR="fltk/CMake" -S ..
 
       - name: Build
         shell: cmd
